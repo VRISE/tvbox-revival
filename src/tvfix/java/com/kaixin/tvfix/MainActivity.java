@@ -31,13 +31,6 @@ public class MainActivity extends Activity {
         + "  *) echo RESULT_OK: $FOCUS ;;\n"
         + "esac\n";
 
-    static final String[] UNFREEZE = {
-        "com.sumavision.loader", "com.sumavision.adbswitch", "com.cmcc.mid.softdetector",
-        "org.sumavision.tms", "com.sumavision.hotkey", "com.sumavision.automatedtestingframework",
-        "com.android.chinamobile.migu.ott.ad", "com.android.chinamobile.migu.ott.ad.update",
-        "com.android.chinamobile.zj.ott.adpro", "com.homecdn.pdown", "com.homecdn.pservice"
-    };
-
     static final String SCRIPT_STATUS = ""
         + "echo ROOT: $(id)\n"
         + "echo ADB_TCP: $(getprop service.adb.tcp.port)\n"
@@ -56,7 +49,7 @@ public class MainActivity extends Activity {
         root.setPadding(pad, pad, pad, pad);
 
         TextView title = new TextView(this);
-        title.setText("M401H 修复助手 v3\n不动运营商应用，只提优先级");
+        title.setText("M401H 修复助手 v6\n不动运营商应用，只提优先级");
         title.setTextSize(20);
         root.addView(title);
 
@@ -69,7 +62,6 @@ public class MainActivity extends Activity {
         addButton(root, "③ ADB永久自启（写入build.prop）", () -> runScript(SCRIPT_PERSIST));
         addButton(root, "④ 当贝设为默认桌面（提优先级）", () -> runScript(SCRIPT_HOME));
         addButton(root, "⑤ 桌面被抢占？一键拉回当贝", () -> runScript(SCRIPT_ENSURE_HOME));
-        addButton(root, "⑥ 恢复所有被冻结的运营商应用", () -> runScript(unfreezeScript()));
 
         root.addView(log);
         ScrollView scroll = new ScrollView(this);
@@ -108,13 +100,6 @@ public class MainActivity extends Activity {
             LogFile.append(this, "button2: " + sb.toString().replace('\n', ' '));
             append(sb + "\n>>> 完成\n");
         }).start();
-    }
-
-    private String unfreezeScript() {
-        StringBuilder sb = new StringBuilder();
-        for (String p : UNFREEZE) sb.append("pm enable ").append(p).append('\n');
-        sb.append("echo RESULT_UNFREEZE_DONE\n");
-        return sb.toString();
     }
 
     private void runScript(final String script) {
