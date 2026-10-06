@@ -1,0 +1,6 @@
+# build artifacts
+build/
+*.iml
+.DS_Store
+# keystore is generated locally by build script; commit your own if you want reproducible signatures
+src/*/debug.keystore

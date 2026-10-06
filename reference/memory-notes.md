@@ -1,0 +1,38 @@
+---
+name: m401h-tvbox-root-and-dangbei
+description: 浙江移动M401H电视盒子(GK6323/安卓9)已全部搞定：SkyLoader替身+当贝开机直达+TvFix v4免root固化ADB(SysProp+ctl.restart)；坑：su拒绝应用身份、BOOT_COMPLETED不投递stopped应用、init不解析新增rc
+metadata:
+  node_type: memory
+  type: project
+  originSessionId: sess_884733eb-e19a-4d60-bb32-3ae210e1de53
+---
+
+用户自己的电视盒子 192.168.5.204 = 浙江移动 M401H（国科 GK6323V100C，board=kunlun，Android 9，CMIOT，原厂 build 111.319.106；92号卡刷包内是 111.319.108 当贝版但用户实际刷回的是原厂）。armeabi-v7a 32位用户态。
+
+**关键事实**
+- root：`/system/xbin/su` 开放型，语法是 `su 0 <cmd>`（**不支持 `su -c`**），任何 uid 可用；SELinux 是 permissive（avc 只记录不拦截）。
+- 官方调试入口（**遥控器和设置应用绝不可动，用户明令**）：设置→密码10086→其他→按遥控器左键约32下→调试模式。开启后即监听 5555。
+- 运营商 HOME = `com.sumavision.loader`（SkyLoader 登录页）；另有 `com.yst.whitebox`（会抢前台）；两个都有 HOME category。原厂 ROM **不含当贝**；当贝 APK 从 `~/Downloads/【亲测】92-浙江版M401H.../update.zip` 提取：system.new.dat.br →(python brotli + sdat2img)→ system.img →(python ext4 库)→ `/system/app/launcher/Launcher.apk`（com.dangbei.tvlauncher，HOME activity=.activity.SplashActivity），已提取存 /tmp/m401h/Launcher.apk。镜像读取时 dirent 名带垃圾字节需清洗。
+- 当贝装 /data 后真实 HOME 键已直达当贝；`cmd package set-home-activity` 虽打印 Success 但 preferred 记录被 PMS 以"Result set changed"秒丢弃（resolve-activity 恒显示 ResolverActivity）——**不影响实际按键行为**，靠 TvFix 开机 ensure-home 兜底。
+- 持久层现状：/system/build.prop 末尾有 service.adb.tcp.port=5555（L1，单独不够：persist.sys.usb.config=none，开机 adbd 根本不起）；/system/etc/init/adbfix.rc boot_completed 钩子（L2，**实测未生效**，该平台 init 疑似不扫 /system/etc/init）；TvFix 应用开机广播（L3，广播已确认投递到，但卡在下一步）。
+
+**最终状态（2026-10-06 晚，已重启终验通过，全程零人工）**
+- **开机直达当贝达成**：SkyLoader 替身部署在 /system/app/SkyLoaderA9_release/（原版备份 /data/local/tmp/SkyLoaderA9_orig_backup.apk，oat 目录已删），重启后直接落在 Dangbei IndexActivity，登录页消失。回滚=拷回备份重启。
+- **ADB 开机自启达成（免 root！）**： TvFix v4 的 BootReceiver 在 boot_completed+15s 用反射 `SystemProperties.set` 写 `service.adb.tcp.port=5555`/`persist.adb.tcp.port=5555` + `ctl.restart adbd`，并写 Settings.Global adb_enabled=1。**SELinux Permissive 下应用可直接设属性和 ctl.\*，完全不需要 su**。已实测：ctl.restart 使 adbd PID 变化、重启后 adbd 自动 running。
+- **su 对应用不可用是死路**：/system/xbin/su 原为 -rwsr-x--- root:shell(4750)，应用 exec 报 error=13；已 chmod 4755 后能执行，但 su 二进制自带调用方白名单，对应用打印 "not allowed" 直接拒绝——**别再折腾 su 给应用用，走 SystemProperties**。
+- /system/etc/init/adbfix.rc **确认不生效**（该平台 init 不解析新增 rc；开机后改 rc 文件也不会重读）。此层保留无害但别指望它。
+- privapp 白名单 /system/etc/permissions/privapp-permissions-com.kaixin.tvfix.xml（WRITE_SECURE_SETTINGS），TvFix 同时装在 /system/priv-app/TvFix（防删）+ /data。v4 还会开机+25s 发 HOME intent 兜底（经替身 loader 转当贝）。
+
+**TvFix.apk v2**（源码 /tmp/tvfix/，成品 ~/Downloads/盒子修复助手.apk + /system/priv-app/TvFix/TvFix.apk）：按钮①状态②开ADB③ADB写build.prop④当贝设默认桌面⑤被抢占拉回当贝⑥恢复全部冻结应用；BootReceiver 开机15s后开ADB+设HOME、再10s后 ensure-home。已设 deviceidle 白名单。纯提权不冻结任何运营商应用。
+
+**两个踩过的坑（重要）**
+1. **应用装完从未打开过 = stopped 状态 = 收不到 BOOT_COMPLETED**。这就是重启后 ADB 3分半没起来的真因；`am start` 打开一次即解除。
+2. **在 adb shell 里 `su 0 stop adbd; start adbd` 会自杀**：stop 杀掉 adbd 连带杀死挂在它下面的 shell/su，start 永远执行不到，机器直接失联（2026-10-06 已发生一次，等用户在 TvFix 界面点按钮②恢复）。从应用上下文执行则安全（su 挂在 app 下）。
+- 该盒子 `adb install`（streamed）报 failed to stat，要用 `adb push` + 盒端 `pm install -r`；adb push 正常。
+- busybox 1.31.0 armv7 静态版已装 /system/xbin/busybox。Termux GitHub/F-Droid 下载均超时未装成（清华镜像也 404，因文件名里的 + 未转义成 %2B，下次用 termux-app_v0.118.3%2Bgithub-debug_armeabi-v7a.apk）。
+- build.prop 等对 shell 不可读（Permission denied），查要用 `su 0`。
+
+**SkyLoader 替身补丁（已部署生效）**：原包仅 MainActivity(HOME+LAUNCHER)+空 Application，无 service/receiver → 不用反编译，直接自建同包名 com.sumavision.loader 替身 APK（/tmp/loaderstub/，成品 ~/Downloads/SkyLoader补丁版.apk）：onCreate 拉起当贝 SplashActivity 后 finish()，HOME intent-filter 加 priority=1 以绕开 preferred 记录被丢的机制。原版备份 /tmp/m401h/SkyLoaderA9_orig.apk + 盒子 /data/local/tmp/SkyLoaderA9_orig_backup.apk；部署脚本 /tmp/m401h/deploy_loader.sh 已执行。回滚=拷回原版重启。
+- 保底恢复：recovery U盘卡刷（update.zip 原厂或当贝版），ROM 自带 su，会清 /data 但入口机制不变。
+
+相关：[[old-android-phones-root-recovery]]
