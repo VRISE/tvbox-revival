@@ -40,6 +40,25 @@ public class MainActivity extends Activity {
 
     private TextView log;
 
+    /** 全局未知来源开关：priv-app + WRITE_SECURE_SETTINGS 即可写，免 root。
+     *  个别商店若仍被拦，是按应用 appops(REQUEST_INSTALL_PACKAGES) 被单独 deny，
+     *  需 adb 跑 scripts/fix_unknown_sources.sh 逐个放行。 */
+    private void allowUnknownSources() {
+        append("\n>>> 放行未知来源安装...");
+        new Thread(() -> {
+            StringBuilder sb = new StringBuilder();
+            try {
+                android.provider.Settings.Global.putInt(
+                        getContentResolver(), "install_non_market_apps", 1);
+                sb.append("install_non_market_apps=1 ok\n");
+            } catch (Throwable t) {
+                sb.append("global failed: ").append(t.getMessage()).append('\n');
+            }
+            append(sb + "若个别商店仍被拦(按应用 appops 屏蔽)，需 adb 跑\nscripts/fix_unknown_sources.sh\n");
+            LogFile.append(this, "unknown sources: " + sb.toString().replace('\n', ' '));
+        }).start();
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -49,7 +68,7 @@ public class MainActivity extends Activity {
         root.setPadding(pad, pad, pad, pad);
 
         TextView title = new TextView(this);
-        title.setText("M401H 修复助手 v6\n不动运营商应用，只提优先级");
+        title.setText("M401H 修复助手 v7\n不动运营商应用，只提优先级");
         title.setTextSize(20);
         root.addView(title);
 
@@ -62,6 +81,7 @@ public class MainActivity extends Activity {
         addButton(root, "③ ADB永久自启（写入build.prop）", () -> runScript(SCRIPT_PERSIST));
         addButton(root, "④ 当贝设为默认桌面（提优先级）", () -> runScript(SCRIPT_HOME));
         addButton(root, "⑤ 桌面被抢占？一键拉回当贝", () -> runScript(SCRIPT_ENSURE_HOME));
+        addButton(root, "⑥ 允许安装未知来源（免root）", this::allowUnknownSources);
 
         root.addView(log);
         ScrollView scroll = new ScrollView(this);
