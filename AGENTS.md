@@ -1,0 +1,47 @@
+# AGENTS.md — 给执行本项目的 AI 的约束
+
+你正在（可能是第一次）操作**一台别人正在使用的实体设备**。这份文件里的规则不是建议。
+
+## 铁律（违反任何一条就先停下来问人）
+
+1. **不删除、不冻结、不禁用任何运营商应用**（`pm disable` / `disable-user` / `uninstall` 全禁）。
+   只用"共存 + 提优先级 + 同包名替身"。原因：这批应用里混着**唯一的官方调试入口**，
+   误冻一个 = 设备失联 = 人要跑到电视前手工救你，本项目曾因此付出数小时代价
+   （见 `docs/cases/M401H/02-执行实录.md` 事故一）。
+2. **不碰 boot / recovery 镜像，不装 Magisk，不刷分区。** 只做可原路还原的文件级改动。
+3. **不在 `adb shell` 会话里执行任何会导致 adbd 中断的命令**（`stop adbd`、重启网络服务、
+   `setprop ctl.restart` 挂在 shell 下的东西）。杀掉 adbd 就是杀掉你自己的连接。
+4. **重启前必须过检查清单**（`docs/00-通用方法论.md` §1 第 6 步），逐条跑命令验证，不许凭记忆。
+   不确定就别重启 —— 重启是一次不可逆的赌注。
+5. **永远先确认电视前有人、遥控器在手**，并且人知道官方调试入口怎么用。这条自救通道要写在你
+   生成的文档最显眼处。
+6. **改动前先备份，备份要落到电脑上一份**（/data 会被卡刷清空）。
+7. 输出诊断**必须落文件日志**，不要指望 UI 上能看清。
+
+## 工作方式
+
+- **侦察优先**：`getenforce`、`su 0 id`、HOME 候选列表、调试入口 —— 这四个答案没拿到之前，
+  不要开始写代码。
+- **一次只改一件事，然后验证**。跨机脚本不要一次全推。
+- **失败要写进文档**，包括误判和失联经过。本项目最值钱的三份文档都是失败换来的。
+- 需要人做物理动作（按遥控器、插 U盘、重启）时，**明确说清一步动作**，不要让人猜。
+- 不确定就问，不要"好心办坏事"：技术上可行 ≠ 应该执行。参见
+  `docs/cases/M401H/04-人机交互决策记录.md`。
+
+## 可直接投喂的启动 prompt
+
+见 `docs/01-AI执行手册.md`，把里面的模板连同你的机型信息一起贴给 agent。
+
+## 构建与部署速查
+
+```bash
+# 构建（不需要 Gradle / Android Studio）
+SDK=~/opt/android-sdk ./scripts/build_apk.sh src/tvfix dist/TvFix.apk
+
+# 从卡刷包提取文件（不联网）
+python3 scripts/extract_apk_from_rom.py update.zip /system/app/launcher/Launcher.apk out.apk
+
+# 部署到盒子
+adb push <apk> /data/local/tmp/ && adb shell "pm install -r /data/local/tmp/<apk>"
+adb shell "am start -n <pkg>/.MainActivity"    # ← 必须，见铁律与坑 B1
+```

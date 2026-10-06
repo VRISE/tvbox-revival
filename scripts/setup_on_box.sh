@@ -19,7 +19,7 @@ chown 0.0 /system/priv-app/TvFix/TvFix.apk
 restorecon /system/priv-app/TvFix/TvFix.apk 2>/dev/null
 
 echo "== 3. priv-app 权限白名单(WRITE_SECURE_SETTINGS) =="
-cp /data/local/tmp/privapp-tvfix.xml /system/etc/permissions/privapp-permissions-com.kaixin.tvfix.xml
+cp /data/local/tmp/privapp-permissions-com.kaixin.tvfix.xml /system/etc/permissions/privapp-permissions-com.kaixin.tvfix.xml
 chmod 644 /system/etc/permissions/privapp-permissions-com.kaixin.tvfix.xml
 restorecon /system/etc/permissions/privapp-permissions-com.kaixin.tvfix.xml 2>/dev/null
 
